@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Osteria Monët - Menù</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Montserrat:wght@300;400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --accent:#c9a24d;
+  --text:#1a1a1a;
+  --muted:#777;
+  --bg:#faf8f5;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Montserrat,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;}
+.container{max-width:900px;margin:18px auto;padding:18px;background:#fff;border:2px solid var(--accent);border-radius:14px;box-shadow:0 6px 22px rgba(0,0,0,0.07);}
+.header{text-align:center;margin-bottom:12px}
+.header h1{font-family:'Playfair Display',serif;font-size:30px;color:var(--accent);margin:0}
+.header p{margin:4px 0;color:#2f5d50;letter-spacing:2px;font-size:12px;text-transform:uppercase}
+.degust{max-width:360px;margin:14px auto;background:#fff8ed;border:1px dashed var(--accent);padding:8px 12px;border-radius:10px;color:#2f5d50;font-family:'Playfair Display',serif;text-align:center;font-size:16px}
+.accordion-btn{width:100%;padding:12px 14px;margin-top:10px;font-size:18px;font-family:'Playfair Display',serif;background:#fff;border:2px solid var(--accent);color:#2f5d50;text-align:left;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+.accordion-btn:active{transform:scale(.998)}
+.sub-btn{width:100%;padding:10px 12px;margin-top:8px;font-size:16px;background:#fff;border-left:5px solid var(--accent);border-radius:8px;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.content{display:none;padding:8px 4px 0}
+.menu-item{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px dotted rgba(201,162,77,0.4)}
+.item-left{flex:1}
+.item-name{font-weight:600;font-size:16px}
+.item-desc{display:block;font-size:13px;color:var(--muted);margin-top:4px}
+.price{white-space:nowrap;font-weight:700;color:#2f5d50;padding-left:8px}
+.empty{color:var(--muted);text-align:center;padding:8px 0;font-style:italic}
+
+/* fixed bottom info (mobile friendly) */
+.footer-note{font-size:12px;color:var(--muted);text-align:center;margin-top:12px}
+
+/* responsive tweaks */
+@media(min-width:600px){
+  .header h1{font-size:36px}
+  .degust{font-size:18px}
+  .accordion-btn{font-size:20px}
+}
+</style>
+</head>
+<body>
+  <div class="container" id="mainContainer">
+    <div class="header">
+      <h1>Osteria Monët</h1>
+      <p>Cucina d'autore</p>
+    </div>
+
+    <div class="degust">Menù degustazione €60</div>
+
+    <div id="menuRoot"></div>
+
+    <div class="allergeni" style="margin-top:16px;border-top:1px solid rgba(201,162,77,0.25);padding-top:12px">
+      <h3 style="font-family:'Playfair Display',serif;color:var(--accent);text-align:center;margin:0 0 8px">Allergeni</h3>
+      <p style="text-align:center;color:#2f5d50;font-size:13px;margin:0 8px">Segnaliamo la presenza dei principali allergeni. Chiedi al personale per informazioni dettagliate.</p>
+    </div>
+
+    <div class="footer-note">Carica più volte a breve se hai appena aggiornato (cache browser)</div>
+  </div>
+
+<script>
+/*
+  Menu loader:
+  - cerca prima il file pubblico in repo GitHub (raw)
+  - se non disponibile, prova a leggere localStorage ("menuData")
+  - rende mobile-friendly
+*/
+const RAW_URL = "https://raw.githubusercontent.com/osteriamonet/osteriamonet.github.io/main/menu/menuData.json"; // usa il tuo repo
+const menuRoot = document.getElementById('menuRoot');
+
+async function fetchMenu(){
+  try{
+    const r = await fetch(RAW_URL, {cache: "no-store"});
+    if(!r.ok) throw new Error("no-remote");
+    const data = await r.json();
+    return data;
+  }catch(e){
+    // fallback a localStorage
+    try{
+      const local = localStorage.getItem('menuData');
+      if(local) return JSON.parse(local);
+    }catch{}
+    return null;
+  }
+}
+
+function createAccordion(menuData){
+  menuRoot.innerHTML = "";
+  if(!menuData || Object.keys(menuData).length === 0){
+    menuRoot.innerHTML = '<p class="empty">Menù vuoto. Usa l\'editor per creare il menù.</p>';
+    return;
+  }
+
+  const icons = { mare: "🌊", terra: "🌿", vini: "🍷", cocktail: "🍸" };
+  const labels = { mare: "Menù Mare", terra: "Menù Terra", vini: "Carta dei Vini", cocktail: "Cocktail & Distillati" };
+
+  for(const cat of Object.keys(menuData)){
+    const catBtn = document.createElement('button');
+    catBtn.className = 'accordion-btn';
+    catBtn.innerHTML = `<span style="display:flex;gap:10px;align-items:center"><span>${icons[cat]||"📜"}</span><span>${labels[cat]||cat}</span></span><span style="opacity:.7">+</span>`;
+
+    const catContent = document.createElement('div');
+    catContent.className = 'content';
+
+    const sections = Object.keys(menuData[cat] || {});
+    if(sections.length === 0){
+      const p = document.createElement('p'); p.className='empty'; p.textContent = 'Nessuna sottosezione';
+      catContent.appendChild(p);
+    } else {
+      for(const sec of sections){
+        const subBtn = document.createElement('button');
+        subBtn.className = 'sub-btn';
+        subBtn.innerHTML = `<span>${sec.charAt(0).toUpperCase()+sec.slice(1)}</span><span style="opacity:.7">▸</span>`;
+
+        const subContent = document.createElement('div');
+        subContent.className = 'content';
+
+        const items = menuData[cat][sec] || [];
+        if(items.length === 0){
+          const p = document.createElement('p'); p.className='empty'; p.textContent = 'Nessun piatto inserito';
+          subContent.appendChild(p);
+        } else {
+          items.forEach(it=>{
+            const row = document.createElement('div');
+            row.className = 'menu-item';
+            const left = document.createElement('div'); left.className = 'item-left';
+            left.innerHTML = `<div class="item-name">${escapeHtml(it.nome || "Senza nome")}</div>${it.descrizione?`<div class="item-desc">${escapeHtml(it.descrizione)}</div>`:""}`;
+            const price = document.createElement('div'); price.className='price'; price.textContent = it.prezzo ? "€" + it.prezzo : "";
+            row.appendChild(left); row.appendChild(price);
+            subContent.appendChild(row);
+          });
+        }
+
+        subBtn.addEventListener('click', ()=>{ subContent.style.display = subContent.style.display === 'block' ? 'none' : 'block'; });
+        catContent.appendChild(subBtn);
+        catContent.appendChild(subContent);
+      }
+    }
+
+    catBtn.addEventListener('click', ()=> { catContent.style.display = catContent.style.display === 'block' ? 'none' : 'block'; });
+    menuRoot.appendChild(catBtn);
+    menuRoot.appendChild(catContent);
+  }
+}
+
+// helper: escape text to prevent accidental HTML injection
+function escapeHtml(s){
+  if(!s) return s;
+  return String(s).replace(/[&<>"'`]/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;', '`':'&#96;' }[c]));
+}
+
+// inizializza
+(async function(){
+  const data = await fetchMenu();
+  createAccordion(data);
+})();
+</script>
+</body>
+</html>
