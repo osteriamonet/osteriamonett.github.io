@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Osteria Menët - Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Montserrat,system-ui; background:#faf8f5;color:#2f5d50;padding:14px}
+.container{max-width:980px;margin:auto;background:#fff;padding:14px;border:2px solid #c9a24d;border-radius:12px}
+h1{margin:0 0 8px;font-size:20px;color:#c9a24d;font-weight:600}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+input,select,textarea,button{font-family:inherit;padding:8px;border-radius:8px;border:1px solid #d0c8b0}
+button{background:#2f5d50;color:#fff;border:none;padding:8px 12px;cursor:pointer}
+button.secondary{background:#fff;color:#2f5d50;border:1px solid #ccc}
+.section{margin-top:12px}
+.list{list-style:none;padding-left:0;margin:6px 0}
+.list li{padding:6px 0;border-bottom:1px dashed #eee;display:flex;justify-content:space-between;align-items:center}
+.small{font-size:13px;color:#666}
+.note{font-size:13px;color:#666;margin-top:8px}
+@media(min-width:700px){h1{font-size:24px}}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Editor Menù - Osteria Monët</h1>
+    <p class="small">I cambiamenti vengono salvati nel browser (localStorage). Usa "Esporta JSON" per pubblicare su GitHub.</p>
+
+    <div class="section">
+      <h3>Nuova categoria</h3>
+      <div class="controls">
+        <input id="newCat" placeholder="nome categoria (es: mare)" />
+        <button onclick="aggiungiCategoria()">Aggiungi</button>
+      </div>
+      <ul id="cats" class="list"></ul>
+    </div>
+
+    <div class="section">
+      <h3>Nuova sottosezione</h3>
+      <div class="controls">
+        <select id="selCat"><option value="">Seleziona categoria</option></select>
+        <input id="newSec" placeholder="nome sottosezione (es: antipasti)" />
+        <button onclick="aggiungiSezione()">Aggiungi</button>
+      </div>
+      <ul id="secs" class="list"></ul>
+    </div>
+
+    <div class="section">
+      <h3>Nuovo piatto</h3>
+      <div class="controls">
+        <select id="selCat2"><option value="">Categoria</option></select>
+        <select id="selSec2"><option value="">Sottosezione</option></select>
+        <input id="nome" placeholder="Nome piatto" />
+        <input id="prezzo" placeholder="Prezzo" style="width:90px"/>
+      </div>
+      <div style="margin-top:8px">
+        <textarea id="desc" placeholder="Descrizione" rows="2" style="width:100%"></textarea>
+        <div style="margin-top:8px">
+          <button onclick="aggiungiPiatto()">Aggiungi piatto</button>
+          <button class="secondary" onclick="mostraTutto()">Aggiorna lista</button>
+        </div>
+      </div>
+      <ul id="items" class="list"></ul>
+    </div>
+
+    <div class="section">
+      <h3>Backup / Import / Reset</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="esporta()">⬇️ Esporta JSON</button>
+        <input type="file" id="fimport" accept=".json" onchange="importa(event)" />
+        <button class="secondary" onclick="resetMenu()">⚠️ Reset a default</button>
+      </div>
+      <p class="note">Quando fai Esporta, scarichi un file menuData.json. Apri la repo → cartella <code>menu/</code> → Upload file → sostituisci <code>menuData.json</code> con quello nuovo e fai commit. Poi visita <code>/menu/</code> e aggiorna la pagina.</p>
+    </div>
+  </div>
+
+<script>
+const defaultMenu = {
+  mare:{antipasti:[],primi:[],secondi:[],dolci:[]},
+  terra:{antipasti:[],primi:[],secondi:[],dolci:[]},
+  vini:{bianchi:[],rossi:[],bollicine:[],dolci:[]},
+  cocktail:{classici:[],signature:[],distillati:[]}
+};
+let menuData = JSON.parse(localStorage.getItem('menuData')) || JSON.parse(JSON.stringify(defaultMenu));
+
+/* helpers DOM */
+const el = id => document.getElementById(id);
+function refreshSelects(){
+  const cats = Object.keys(menuData);
+  ['selCat','selCat2'].forEach(id=>{
+    const s = el(id); s.innerHTML='<option value="">Seleziona categoria</option>';
+    cats.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; s.appendChild(o); });
+  });
+  // update sections for second select
+  const sc = el('selCat2').value;
+  updateSecList();
+}
+
+function updateSecList(){
+  const cat = el('selCat2').value;
+  const s = el('selSec2'); s.innerHTML='<option value="">Sottosezione</option>';
+  if(!cat || !menuData[cat]) return;
+  Object.keys(menuData[cat]).forEach(sec=>{ const o=document.createElement('option'); o.value=sec; o.textContent=sec; s.appendChild(o); });
+}
+
+/* UI update */
+function mostraTutto(){
+  // categories
+  const cl = el('cats'); cl.innerHTML='';
+  Object.keys(menuData).forEach(c=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<span>${c}</span><span><button onclick="eliminaCategoria('${c}')">❌</button></span>`;
+    cl.appendChild(li);
+  });
+
+  // sections
+  const sl = el('secs'); sl.innerHTML='';
+  const sc = el('selCat').value;
+  if(sc && menuData[sc]) Object.keys(menuData[sc]).forEach(s=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<span>${sc} / ${s}</span><span><button onclick="eliminaSezione('${sc}','${s}')">❌</button></span>`;
+    sl.appendChild(li);
+  });
+
+  // items
+  const il = el('items'); il.innerHTML='';
+  const cat = el('selCat2').value, sec = el('selSec2').value;
+  if(cat && sec && menuData[cat] && menuData[cat][sec]) {
+    menuData[cat][sec].forEach((it,i)=>{
+      const li=document.createElement('li');
+      li.innerHTML = `<div><strong>${it.nome}</strong><div class="small">${it.descrizione||''}</div></div><div><span>€${it.prezzo||''}</span><button onclick="rimuoviPiatto('${cat}','${sec}',${i})">❌</button></div>`;
+      il.appendChild(li);
+    });
+  }
+  refreshSelects();
+  updateSecList();
+}
+
+/* CRUD */
+function aggiungiCategoria(){
+  const v = el('newCat').value.trim().toLowerCase();
+  if(!v) return alert('Inserisci nome categoria');
+  if(menuData[v]) return alert('Categoria esistente');
+  menuData[v] = {};
+  el('newCat').value=''; salva();
+}
+function eliminaCategoria(c){
+  if(!confirm('Eliminare categoria e tutto il suo contenuto?')) return;
+  delete menuData[c]; salva();
+}
+function aggiungiSezione(){
+  const c = el('selCat').value; const s = el('newSec').value.trim().toLowerCase();
+  if(!c) return alert('Seleziona categoria'); if(!s) return alert('Inserisci nome sottosezione');
+  if(menuData[c][s]) return alert('Sottosezione esistente');
+  menuData[c][s] = []; el('newSec').value=''; salva();
+}
+function eliminaSezione(c,s){
+  if(!confirm('Eliminare sottosezione e i piatti?')) return;
+  delete menuData[c][s]; salva();
+}
+function aggiungiPiatto(){
+  const c = el('selCat2').value; const s = el('selSec2').value;
+  const nome = el('nome').value.trim(); const prezzo = el('prezzo').value.trim(); const desc = el('desc').value.trim();
+  if(!c||!s) return alert('Seleziona categoria e sottosezione'); if(!nome) return alert('Nome obbligatorio');
+  menuData[c][s].push({nome,prezzo,descrizione:desc});
+  el('nome').value=''; el('prezzo').value=''; el('desc').value=''; salva();
+}
+function rimuoviPiatto(c,s,i){ if(!confirm('Eliminare piatto?')) return; menuData[c][s].splice(i,1); salva(); }
+
+/* persist */
+function salva(){ localStorage.setItem('menuData', JSON.stringify(menuData)); mostraTutto(); }
+function resetMenu(){ if(confirm('Reset menù a default?')){ menuData = JSON.parse(JSON.stringify(defaultMenu)); salva(); } }
+
+/* export / import */
+function esporta(){
+  const blob = new Blob([JSON.stringify(menuData,null,2)],{type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'menuData.json'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importa(e){
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader(); r.onload = ev => {
+    try{
+      const j = JSON.parse(ev.target.result);
+      menuData = j; salva(); alert('JSON importato correttamente. Ricorda di fare upload su GitHub per pubblicare.');
+    }catch(err){ alert('File JSON non valido'); }
+  }; r.readAsText(f);
+}
+
+/* init */
+document.addEventListener('DOMContentLoaded', ()=>{ mostraTutto(); });
+el('selCat2').addEventListener('change', updateSecList);
+el('selCat2').addEventListener('change', mostraTutto);
+el('selCat').addEventListener('change', mostraTutto);
+el('selSec2').addEventListener('change', mostraTutto);
+</script>
+</body>
+</html>
